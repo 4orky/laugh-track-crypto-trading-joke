@@ -1,210 +1,165 @@
-#!/usr/bin/env python3
-"""Laugh Track: The Crypto Trading Joke Contest entry.
+"""Entry for the Laugh Track crypto-trading joke contest.
 
-Writes one original one-line joke about crypto and trading life
-(at most 200 characters) to /output/entry.txt.
+Fourteen one-line jokes about life as a crypto trader were written for
+this contest and then ranked against the five things the judges care
+about, most important first: a setup that turns, a genuine laugh, a
+detail that rings true to anyone who has watched a chart at 3 a.m.,
+wording with nothing wasted, and a line worth repeating to a friend.
+Each joke gets a mark from zero to five on every one of those five
+points, and the points are weighted five, four, three, two, one, so
+the first thing the judges care about counts the most.
 
-How it picks the line: fourteen original candidate jokes, each written
-for this entry, are scored against the judge's five criteria, in the
-judge's own order of importance:
+A joke that leans on a punchline everybody has already heard does not
+get full credit for ringing true: every stale trope spotted inside
+the joke itself knocks one off its truth mark, down to zero at the
+lowest. The best total takes the prize; when two jokes tie, the one
+that appears first in the list takes it, which keeps the whole pick
+repeatable down to the byte.
 
-  1. it is a one-line joke about crypto and trading life, with a clear
-     setup and a turn
-  2. it lands a real laugh, with a surprise turn and a payoff that
-     rewards the setup
-  3. it feels true to crypto and trading life, with a recognisable
-     detail such as the chart, the bag or the group chat
-  4. it uses every word well: tight phrasing, no throat clearing, and
-     the punchline at the end
-  5. it holds up on a second read and is a line a trader would repeat
-     to a friend
+The winning joke went through a second draft before it was frozen.
+At first the two halves were joined with a plain "and now the group
+chat calls it...", which read flat. The rewrite cuts in with an
+em dash, points back with "the same chat" instead of naming the
+group chat twice, and leaves the closing punchline exactly where it
+was. The winning line is printed, written out, and hashed below.
 
-Each criterion is rated 0-5 and weighted 5, 4, 3, 2, 1, matching the
-judge's priority order. The highest total wins; ties go to the
-earliest candidate in the list, so the choice is fully deterministic.
+Nothing here touches the network, rolls dice, or reads anything from
+outside the file: the jokes, the marks, and the rules all live in
+this one script, and it only ever writes one file. This is the whole entry."""
 
-Freshness is not only hand-rated: any candidate that leans on a tired
-crypto-joke trope loses one point off its true-detail rating per
-trope phrase found in its own text (clamped at zero) — a line built
-on a trope everyone has heard is not an earned detail, so it cannot
-win on a generous hand rating alone.
+import hashlib
+import os
+import sys
 
-Revision (second pass on the winner, candidate 1): the first draft
-read "...so I bought the top, and now the group chat calls it a
-generational learning experience." The revision swaps the flat "and
-now" for an em-dash beat and "the same chat" instead of repeating
-"the group chat": the callback is tighter, the pause lets the turn
-land, and the punchline still closes on "generational learning
-experience". The revised line below is the entry.
+PRIORITY_WEIGHTS = [5, 4, 3, 2, 1]
 
-No network, no external input, no randomness. The program verifies
-its own output (1-200 characters, a single line, UTF-8) and prints
-the SHA-256 of the file it wrote.
-"""
+TIRED_TROPES = (
+    "to the moon|diamond hands|bought the dip|buy the dip|lambo|"
+    "wen moon|have fun staying poor"
+).split("|")
 
-from hashlib import sha256
-from os import environ, makedirs
-from sys import exit as finish, stderr
-
-# Weights for the five judge criteria, in the judge's priority order:
-# on-topic setup+turn, laugh, true detail, tight, repeatable.
-WEIGHTS = (5, 4, 3, 2, 1)
-
-# Overused crypto-joke tropes. A candidate containing one of these
-# phrases has already been told a thousand times; each hit costs one
-# freshness point. Matched case-insensitively against the text itself.
-CLICHES = (
-    "to the moon",
-    "diamond hands",
-    "bought the dip",
-    "buy the dip",
-    "lambo",
-    "wen moon",
-    "have fun staying poor",
-)
-
-
-# Each candidate: (text, (on-topic, laugh, true, tight, repeatable)).
-# All fourteen lines are original, written for this entry.
-CANDIDATES = [
-    (
-        "The group chat called it a generational buying opportunity, so I "
-        "bought the top \u2014 and now the same chat calls it a "
-        "generational learning experience.",
-        (5, 5, 5, 4, 5),
-    ),
-    (
-        "I bought the dip, then the dip dipped, then I bought that dip "
-        "too \u2014 my average entry is now a support level for the "
-        "entire market.",
-        (5, 4, 5, 5, 4),
-    ),
-    (
-        "I sold at the bottom to buy back lower, then watched it pump "
-        "40% while my limit order sat there like a gym membership in "
-        "January.",
-        (5, 4, 5, 4, 4),
-    ),
-    (
-        "My portfolio is so diversified that when Bitcoin sneezes, my "
-        "altcoins catch pneumonia and my stablecoins file for divorce.",
-        (5, 4, 4, 4, 4),
-    ),
-    (
-        "The exchange sent me a 'we miss you' email after one day away, "
-        "which is more attention than my portfolio has given me all year.",
-        (5, 4, 4, 4, 4),
-    ),
-    (
-        "The whitepaper said the token would revolutionise finance; "
-        "three months later it revolutionised my ability to explain "
-        "losses to my girlfriend.",
-        (5, 4, 4, 4, 3),
-    ),
-    (
-        "I told my mum crypto was my retirement plan; she asked which "
-        "year I plan to retire, and I said whichever year the chart "
-        "goes back up.",
-        (5, 4, 4, 3, 4),
-    ),
-    (
-        "I set a stop-loss, a take-profit, and an alarm for 3 a.m.; the "
-        "market hit all three, in that order, while I was asleep.",
-        (5, 3, 5, 3, 3),
-    ),
-    (
-        "I bought green candles, sold red ones, and now my net worth "
-        "looks like a staircase going down.",
-        (5, 3, 4, 4, 4),
-    ),
-    (
-        "I check the chart so often my phone thinks I'm in a "
-        "relationship with it, and honestly, it's the most committed "
-        "one I've had.",
-        (4, 3, 4, 4, 3),
-    ),
-    (
-        "I finally understood support and resistance when my bank "
-        "balance supported nothing and resisted every withdrawal.",
-        (5, 3, 4, 4, 3),
-    ),
-    (
-        "My risk management is impeccable: I only ever risk money I "
-        "can't afford to lose, which is why I have nothing left to risk.",
-        (5, 4, 3, 4, 4),
-    ),
-    (
-        "I DCA into Bitcoin every payday, which means I buy the top "
-        "twelve times a year with the discipline of a man paying rent "
-        "to a landlord who keeps raising it.",
-        (5, 3, 4, 3, 3),
-    ),
-    (
-        "I told my therapist I day-trade crypto; she said my charts "
-        "show classic avoidance, so now I avoid her too and watch the "
-        "candles instead.",
-        (5, 3, 4, 3, 3),
-    ),
-]
+JOKE_BOOK = [
+    {
+        "text": "The group chat called it a generational buying opportunity, so I bought the top — and now the same chat calls it a generational learning experience.",
+        "marks": [5, 5, 5, 4, 5],
+    },
+    {
+        "text": "I bought the dip, then the dip dipped, then I bought that dip too — my average entry is now a support level for the entire market.",
+        "marks": [5, 4, 5, 5, 4],
+    },
+    {
+        "text": "I sold at the bottom to buy back lower, then watched it pump 40% while my limit order sat there like a gym membership in January.",
+        "marks": [5, 4, 5, 4, 4],
+    },
+    {
+        "text": "My portfolio is so diversified that when Bitcoin sneezes, my altcoins catch pneumonia and my stablecoins file for divorce.",
+        "marks": [5, 4, 4, 4, 4],
+    },
+    {
+        "text": "The exchange sent me a 'we miss you' email after one day away, which is more attention than my portfolio has given me all year.",
+        "marks": [5, 4, 4, 4, 4],
+    },
+    {
+        "text": "The whitepaper said the token would revolutionise finance; three months later it revolutionised my ability to explain losses to my girlfriend.",
+        "marks": [5, 4, 4, 4, 3],
+    },
+    {
+        "text": "I told my mum crypto was my retirement plan; she asked which year I plan to retire, and I said whichever year the chart goes back up.",
+        "marks": [5, 4, 4, 3, 4],
+    },
+    {
+        "text": "I set a stop-loss, a take-profit, and an alarm for 3 a.m.; the market hit all three, in that order, while I was asleep.",
+        "marks": [5, 3, 5, 3, 3],
+    },
+    {
+        "text": "I bought green candles, sold red ones, and now my net worth looks like a staircase going down.",
+        "marks": [5, 3, 4, 4, 4],
+    },
+    {
+        "text": "I check the chart so often my phone thinks I'm in a relationship with it, and honestly, it's the most committed one I've had.",
+        "marks": [4, 3, 4, 4, 3],
+    },
+    {
+        "text": "I finally understood support and resistance when my bank balance supported nothing and resisted every withdrawal.",
+        "marks": [5, 3, 4, 4, 3],
+    },
+    {
+        "text": "My risk management is impeccable: I only ever risk money I can't afford to lose, which is why I have nothing left to risk.",
+        "marks": [5, 4, 3, 4, 4],
+    },
+    {
+        "text": "I DCA into Bitcoin every payday, which means I buy the top twelve times a year with the discipline of a man paying rent to a landlord who keeps raising it.",
+        "marks": [5, 3, 4, 3, 3],
+    },
+    {
+        "text": "I told my therapist I day-trade crypto; she said my charts show classic avoidance, so now I avoid her too and watch the candles instead.",
+        "marks": [5, 3, 4, 3, 3],
+    }]
 
 
-def rate(text, ratings):
-    """Weighted total for one candidate's five criterion ratings.
-
-    The true-detail rating is adjusted first: each tired-trope phrase
-    found in the candidate's own text costs one point.
-    """
-    on_topic, laugh, true_detail, tight, repeatable = ratings
-    lowered = text.lower()
-    hits = sum(1 for phrase in CLICHES if phrase in lowered)
-    true_detail = max(0, true_detail - hits)
-    adjusted = (on_topic, laugh, true_detail, tight, repeatable)
-    return sum(w * r for w, r in zip(WEIGHTS, adjusted))
+def truth_after_tropes(joke, truth_mark):
+    lowered = joke.lower()
+    stale = 0
+    for trope in TIRED_TROPES:
+        if trope in lowered:
+            stale += 1
+    if truth_mark - stale < 0:
+        return 0
+    return truth_mark - stale
 
 
-def choose(candidates):
-    """Return (index, text, total) of the best candidate.
-
-    Deterministic: strictly greater totals replace the leader, so the
-    earliest candidate wins any tie.
-    """
-    best_index, best_text, best_total = -1, "", -1
-    for index, (text, ratings) in enumerate(candidates):
-        total = rate(text, ratings)
-        if total > best_total:
-            best_index, best_text, best_total = index, text, total
-    return best_index, best_text, best_total
+def total_for(entry):
+    marks = list(entry["marks"])
+    marks[2] = truth_after_tropes(entry["text"], marks[2])
+    points = 0
+    for weight, mark in zip(PRIORITY_WEIGHTS, marks):
+        points += weight * mark
+    return points
 
 
-def gate(text):
-    """Gate the chosen line the way the sealed scorer does."""
-    if not (1 <= len(text) <= 200):
-        return "length %d is outside 1..200 characters" % len(text)
-    if text.strip() != text or not text.strip():
-        return "entry is blank or has surrounding whitespace"
-    if "\n" in text or "\r" in text:
-        return "entry is not a single line"
-    return None
+def pick_winner(book):
+    champion = 0
+    champion_points = total_for(book[0])
+    for position in range(1, len(book)):
+        points = total_for(book[position])
+        if points > champion_points:
+            champion = position
+            champion_points = points
+    return champion, champion_points
 
 
-def run():
-    index, text, total = choose(CANDIDATES)
-    problem = gate(text)
-    if problem is not None:
-        print("self-check failed: %s" % problem, file=stderr)
-        return 1
-
-    out_path = environ.get("OUTPUT_PATH", "/output/entry.txt")
-    out_dir = out_path.rsplit("/", 1)[0] if "/" in out_path else ""
-    if out_dir:
-        makedirs(out_dir, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as handle:
-        handle.write(text)
-    digest = sha256(text.encode("utf-8")).hexdigest()
-    print("candidate %d of %d, score %d" % (index + 1, len(CANDIDATES), total))
-    print("entry: %s" % text)
-    print("sha256: %s" % digest)
-    return 0
+def check_entry(line):
+    flaws = []
+    if len(line) < 1 or len(line) > 200:
+        flaws.append("length %d outside 1..200" % len(line))
+    if line != line.strip():
+        flaws.append("leading or trailing whitespace")
+    if "\n" in line or "\r" in line:
+        flaws.append("more than one line")
+    return flaws
 
 
-finish(run())
+def main():
+    winner, points = pick_winner(JOKE_BOOK)
+    line = JOKE_BOOK[winner]["text"]
+    flaws = check_entry(line)
+    if flaws:
+        for flaw in flaws:
+            print("self-check failed: " + flaw, file=sys.stderr)
+        sys.exit(1)
+    target = os.environ.get("OUTPUT_PATH", "/output/entry.txt")
+    folder, _, _name = target.rpartition("/")
+    if folder:
+        os.makedirs(folder, exist_ok=True)
+    with open(target, "w", encoding="utf-8") as out:
+        out.write(line)
+    fingerprint = hashlib.sha256(line.encode("utf-8")).hexdigest()
+    for position, entry in enumerate(JOKE_BOOK):
+        print("candidate %d: %d points" % (position + 1, total_for(entry)))
+    print("winner: candidate %d with %d points" % (winner + 1, points))
+    print("entry: " + line)
+    print("sha256: " + fingerprint)
+
+
+if __name__ == "__main__":
+    main()
